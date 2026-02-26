@@ -1,43 +1,26 @@
-# Financial Document Analyzer - Debug Assignment
+# Financial Document Analyzer 📊
 
-## Project Overview
-A comprehensive financial document analysis system that processes corporate reports, financial statements, and investment documents using AI-powered analysis agents.
+A robust, asynchronous AI-powered system that analyzes financial documents using CrewAI. This project has been significantly upgraded from its baseline to handle concurrent scaling via a Celery background queue, and features a token-safe RAG architecture (FAISS + Langchain) to process massive 200+ page datasets safely.
 
-## Getting Started
+## 🏗️ System Architecture
 
-### Install Required Libraries
-```sh
-pip install -r requirement.txt
-```
+- **FastAPI**: Serves securely via X-Api-Key authentication and slowapi rate limiting (5 req/min).
+- **Celery & Redis**: Offloads long-running AI tasks into an asynchronous queue with exponential retry backoff.
+- **SQLite Database**: Tracks the strict `pending`, `processing`, `completed`, and `failed` task lifecycles for true idempotency.
+- **Token-Safe RAG**: Utilizes `RecursiveCharacterTextSplitter` and `FAISS` in-memory semantic retrieval to safeguard against OpenAI context limits.
+- **Structured Logging**: Ensures complete trace observability from endpoint ingestion to background completion.
 
-### Financial Document Analyzer 📊
+## ⚙️ Prerequisites
 
-A robust, AI-powered system that analyzes financial documents using CrewAI. This project has been debugged, enhanced, and scaled to handle concurrent requests using a background task queue (Celery) and a SQLite database.
-
-## System Upgrades & Bug Fixes 🛠️
-
-1. **Deterministic Bugs Fixed:**
-   - **Invalid Dependencies:** Updated requirements.txt with right versions, specifically including `PyPDF2`, `SQLAlchemy`, `celery`, and `langchain-openai`. Tool and LLM syntax were outdated in `crewai_tools` and `langchain` and have been corrected.
-   - **LLM Initialization:** Resolved the `llm=llm` undefined variable issue in `agents.py` by properly importing and configuring `ChatOpenAI`.
-   - **Broken Tool Definition:** Refactored `tools.py` into valid CrewAI `@tool` functions handling asynchronous processing using `PyPDF2`.
-
-2. **Inefficient Prompts Addressed:**
-   - Redefined all agent goals, roles, and backstories to stop them from deliberately hallucinating, recommending risky investments blindly, or making up non-existent website URLs.
-   - Replaced tasks in `task.py` with structured descriptions and precise expectations, forcing the crew to give realistic and grounded data-driven analysis.
-
-3. **Bonus Features Implemented! 🌟**
-   - **Queue Worker Model:** Introduced Celery with a Redis broker to handle document analysis asynchronously, enabling the application to handle numerous concurrent uploads smoothly without freezing the FastAPI endpoints.
-   - **Database Integration:** Integrated SQLAlchemy with a SQLite database (`financial_analyzer.db`) to log request files, queries, status changes, and final AI-generated results.
-
-## Prerequisites
 - Python 3.10+
-- Redis Server (Must be reachable at `redis://localhost:6379/0` or configure via `REDIS_URL` env variable)
+- Redis Server (Reachable at `redis://localhost:6379/0` or configure via `REDIS_URL`)
 - OpenAI API Key
 
-## Setup and Installation
+## 🚀 Setup and Installation
 
 1. Clone this repository and navigate to the project directory:
    ```bash
+   git clone <your-repository-url>
    cd financial-document-analyzer
    ```
 
@@ -52,15 +35,17 @@ A robust, AI-powered system that analyzes financial documents using CrewAI. This
    pip install -r requirements.txt
    ```
 
-4. Set up an `.env` file in the root directory and add your OpenAI Key:
+4. Create an `.env` file in the root directory (based on `.env.example`):
    ```env
    OPENAI_API_KEY=your_openai_api_key_here
-   REDIS_URL=redis://localhost:6379/0  # Optional if default
+   OPENAI_MODEL_NAME=gpt-4o-mini
+   REDIS_URL=redis://localhost:6379/0
+   APP_API_KEY=dev-secret-key
    ```
 
-## Running the Application
+## 🏃 Running the Application
 
-To run the full stack, you need to start the Redis server, the FastAPI application, and the Celery worker.
+To run the full stack locally, you need to start the Redis server, the FastAPI application, and the Celery worker.
 
 **1. Start Redis:**
 If using Docker:
@@ -78,18 +63,21 @@ python main.py
 ```bash
 celery -A worker.celery_app worker --loglevel=info
 ```
-*(On Windows, you may need to use `celery -A worker.celery_app worker --loglevel=info --pool=solo` depending on Celery versions).*
+*(On Windows, you may need to use `--pool=solo` depending on your environment: `celery -A worker.celery_app worker --loglevel=info --pool=solo`)*
 
-## API Documentation
+## 📚 API Documentation
 
-The server exposes REST endpoints to submit documents and poll for results.
+The server exposes REST endpoints to submit documents and poll for results securely. **All endpoints require the `X-Api-Key` header.**
 
 ### `POST /analyze`
-Analyzes a financial document asynchronously via the CrewAI workers.
+Analyzes a financial document asynchronously via the CrewAI background workers.
+
+**Headers:**
+- `X-Api-Key`: `<Your-App-Api-Key>`
 
 **Parameters (Form Data):**
 - `file` (File): The PDF document to analyze.
-- `query` (String, Optional): Custom instructions or investment perspective (e.g. "Evaluate short term volatility").
+- `query` (String, Optional): Custom instructions or investment perspective (e.g., "Evaluate short term volatility").
 
 **Response (JSON):**
 ```json
@@ -102,7 +90,10 @@ Analyzes a financial document asynchronously via the CrewAI workers.
 ```
 
 ### `GET /status/{task_id}`
-Checks the current processing status and retrieves the result if completed.
+Checks the current processing status and retrieves the parsed JSON result if completed.
+
+**Headers:**
+- `X-Api-Key`: `<Your-App-Api-Key>`
 
 **Path Parameters:**
 - `task_id` (String): The ID returned from the POST `/analyze` request.
@@ -119,25 +110,14 @@ Checks the current processing status and retrieves the result if completed.
   "updated_at": "2023-10-10T12:05:00"
 }
 ```
-*Note: `status` can be `pending`, `processing`, `completed`, or `failed`.*m: https://www.tesla.com/sites/default/files/downloads/TSLA-Q2-2025-Update.pdf
-2. Save it as `data/sample.pdf` in the project directory
-3. Or upload any financial PDF through the API endpoint
+*Note: `status` can be `pending`, `processing`, `completed`, or `failed`.*
 
-**Note:** Current `data/sample.pdf` is a placeholder - replace with actual Tesla financial document for proper testing.
+## 🧪 Pre-Submission QA Validation
 
-# You're All Not Set!
-🐛 **Debug Mode Activated!** The project has bugs waiting to be squashed - your mission is to fix them and bring it to life.
+To ensure production-grade stability, this architecture has been explicitly hardened against common AI and infrastructure API failures:
 
-## Debugging Instructions
-
-1. **Identify the Bug**: Carefully read the code in each file and understand the expected behavior. There is a bug in each line of code. So be careful.
-2. **Fix the Bug**: Implement the necessary changes to fix the bug.
-3. **Test the Fix**: Run the project and verify that the bug is resolved.
-4. **Repeat**: Continue this process until all bugs are fixed.
-
-## Expected Features
-- Upload financial documents (PDF format)
-- AI-powered financial analysis
-- Investment recommendations
-- Risk assessment
-- Market insights
+- **Token-Safe RAG:** Massive financial documents (100+ pages) bypass OpenAI context-window limitations via `RecursiveCharacterTextSplitter` and `FAISS` in-memory semantic retrieval. 
+- **Resilient Background Processing:** The Celery worker implements idempotent checks and `retry_backoff` logic to gracefully handle transient OpenAI API timeouts or Rate Limits.
+- **API Security:** Endpoints are protected via dependency-injected `X-Api-Key` authorization headers.
+- **Rate Limiting:** `slowapi` enforces strict window-based rate limiting (5 req/min) to prevent unauthorized OpenAI credit exhaustion. 
+- **Graceful Degradation:** SQLite database tracking maintains request lineage (`pending` -> `processing` -> `completed`/`failed`) regardless of asynchronous worker state failures.
