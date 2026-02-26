@@ -1,0 +1,16 @@
+# Environments
+.env
+venv/
+env/
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Local Data/Databases
+data/
+*.db
+financial_analyzer.db
+
+# OS Files
+.DS_Store
